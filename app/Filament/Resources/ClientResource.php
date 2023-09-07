@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ClientResource\Pages;
 use App\Filament\Resources\ClientResource\RelationManagers;
 use App\Models\Client;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Forms;
 use Filament\Forms\Components\Group;
 use Filament\Forms\Components\MarkdownEditor;
@@ -17,6 +18,8 @@ use Filament\Tables;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
@@ -24,7 +27,7 @@ class ClientResource extends Resource
 {
     protected static ?string $model = Client::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-user-group';
 
     public static function form(Form $form): Form
     {
@@ -32,15 +35,15 @@ class ClientResource extends Resource
             ->schema([
                 Group::make()->schema([
                     Section::make()->schema([
-                        TextInput::make('name'),
-                        TextInput::make('email'),
+                        TextInput::make('name')->validationAttribute('full name'),
+                        TextInput::make('email')->email(),
                         TextInput::make('phone'),
                         MarkdownEditor::make('address')->columnSpan('full'),
                     ])->columns(2)
                 ]),
                 Group::make()->schema([
                     Section::make('Client')->schema([
-                        Toggle::make('is_corporate')
+                        Toggle::make('is_corporate')->label('Corporate Client')->helperText('Client is corporate or not.')
                     ])
                 ])
             ]);
@@ -54,13 +57,24 @@ class ClientResource extends Resource
                 TextColumn::make('email'),
                 TextColumn::make('phone'),
                 TextColumn::make('address'),
-                IconColumn::make('is_corporate')->boolean(),
+                IconColumn::make('is_corporate')->boolean()->label('Corporate Client'),
             ])
             ->filters([
                 //
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('pdf')
+                    ->label('PDF')
+                    ->color('success')
+                    ->icon('heroicon-o-arrow-down-on-square-stack')
+                    ->action(function (Client $record) {
+                        return response()->streamDownload(function () use ($record) {
+                            echo Pdf::loadHtml(
+                                Blade::render('pdf', ['record' => $record])
+                            )->stream();
+                        }, $record->name . '.pdf');
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
